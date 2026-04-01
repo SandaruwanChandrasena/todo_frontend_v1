@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import API from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
+import Spinner from '../components/Spinner.jsx';
 import theme from '../theme/theme.jsx';
 
 function Login() {
@@ -26,7 +27,6 @@ function Login() {
     e.preventDefault();
     const { email, password } = formData;
 
-    // Validations
     if (!email || !password) {
       return setError('All fields are required');
     }
@@ -62,6 +62,8 @@ function Login() {
       backgroundColor: theme.colors.background,
       fontFamily: theme.fonts.main,
     }}>
+
+      {loading && <Spinner fullScreen />}
 
       {/* Banner */}
       <div style={{
@@ -117,7 +119,6 @@ function Login() {
             Enter your credentials to access your tasks
           </p>
 
-          {/* Error message */}
           {error && (
             <div style={{
               backgroundColor: theme.colors.dangerBg,
@@ -214,7 +215,7 @@ function Login() {
             </div>
           </div>
 
-          {/* Submit Button */}
+          {/* Submit */}
           <button
             onClick={handleSubmit}
             disabled={loading}
@@ -234,10 +235,9 @@ function Login() {
             onMouseEnter={e => { if (!loading) e.target.style.backgroundColor = theme.colors.primaryHover }}
             onMouseLeave={e => { if (!loading) e.target.style.backgroundColor = theme.colors.primary }}
           >
-            {loading ? 'Signing in...' : 'Sign In'}
+            Sign In
           </button>
 
-          {/* Register link */}
           <p style={{
             textAlign: 'center',
             fontSize: theme.fonts.sizes.md,

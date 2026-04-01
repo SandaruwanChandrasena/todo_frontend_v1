@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext.jsx';
 import Navbar from '../components/Navbar.jsx';
 import TaskItem from '../components/TaskItem.jsx';
 import EditModal from '../components/EditModal.jsx';
+import Spinner from '../components/Spinner.jsx';
 import theme from '../theme/theme.jsx';
 
 function Home() {
@@ -12,11 +13,11 @@ function Home() {
   const [tasks, setTasks] = useState([]);
   const [taskText, setTaskText] = useState('');
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState('');
   const [editTask, setEditTask] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  // Fetch all tasks on load
   useEffect(() => {
     fetchTasks();
   }, []);
@@ -33,61 +34,63 @@ function Home() {
     }
   };
 
-  // Create task
   const handleCreateTask = async () => {
     if (!taskText.trim()) return;
     try {
+      setActionLoading(true);
       const res = await API.post('/tasks', { taskText });
       setTasks([res.data, ...tasks]);
       setTaskText('');
     } catch (err) {
       setError('Failed to create task');
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // Handle Enter key on input
   const handleKeyDown = (e) => {
     if (e.key === 'Enter') handleCreateTask();
   };
 
-  // Complete task toggle
   const handleComplete = async (id) => {
-    try {
-      const res = await API.put(`/tasks/${id}/complete`);
-      setTasks(tasks.map(t => t._id === id ? res.data : t));
-    } catch (err) {
-      setError('Failed to update task');
-    }
-  };
+  try {
+    const res = await API.put(`/tasks/${id}/complete`);
+    setTasks(tasks.map(t => t._id === id ? res.data : t));
+  } catch (err) {
+    setError('Failed to update task');
+  }
+};
 
-  // Edit task
   const handleEdit = async (id, newText) => {
     try {
+      setActionLoading(true);
       const res = await API.put(`/tasks/${id}`, { taskText: newText });
       setTasks(tasks.map(t => t._id === id ? res.data : t));
       setEditTask(null);
     } catch (err) {
       setError('Failed to update task');
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // Delete task — show confirm first
   const handleDeleteConfirm = (id) => {
     setDeleteConfirm(id);
   };
 
-  // Delete task — confirmed
   const handleDelete = async () => {
     try {
+      setActionLoading(true);
       await API.delete(`/tasks/${deleteConfirm}`);
       setTasks(tasks.filter(t => t._id !== deleteConfirm));
       setDeleteConfirm(null);
     } catch (err) {
       setError('Failed to delete task');
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  // Task counts
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.isCompleted).length;
   const pendingTasks = tasks.filter(t => !t.isCompleted).length;
@@ -98,6 +101,8 @@ function Home() {
       backgroundColor: theme.colors.background,
       fontFamily: theme.fonts.main,
     }}>
+
+      {actionLoading && <Spinner fullScreen />}
 
       <Navbar />
 
@@ -170,7 +175,7 @@ function Home() {
           ))}
         </div>
 
-        {/* Error message */}
+        {/* Error */}
         {error && (
           <div style={{
             backgroundColor: theme.colors.dangerBg,
@@ -184,7 +189,7 @@ function Home() {
           </div>
         )}
 
-        {/* Add task input */}
+        {/* Add task */}
         <div style={{
           display: 'flex',
           gap: theme.spacing.sm,
@@ -235,13 +240,13 @@ function Home() {
 
         {/* Task list */}
         {loading ? (
-          <p style={{
-            textAlign: 'center',
-            color: theme.colors.textSecondary,
-            fontSize: theme.fonts.sizes.lg,
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            padding: theme.spacing.xxl,
           }}>
-            Loading tasks...
-          </p>
+            <Spinner size="48px" />
+          </div>
         ) : tasks.length === 0 ? (
           <div style={{
             textAlign: 'center',
@@ -258,7 +263,7 @@ function Home() {
           </div>
         ) : (
           <div>
-            {/* Pending tasks */}
+            {/* Pending */}
             {tasks.filter(t => !t.isCompleted).length > 0 && (
               <div style={{ marginBottom: theme.spacing.lg }}>
                 <p style={{
@@ -271,21 +276,19 @@ function Home() {
                 }}>
                   Pending
                 </p>
-                {tasks
-                  .filter(t => !t.isCompleted)
-                  .map(task => (
-                    <TaskItem
-                      key={task._id}
-                      task={task}
-                      onComplete={handleComplete}
-                      onEdit={setEditTask}
-                      onDelete={handleDeleteConfirm}
-                    />
-                  ))}
+                {tasks.filter(t => !t.isCompleted).map(task => (
+                  <TaskItem
+                    key={task._id}
+                    task={task}
+                    onComplete={handleComplete}
+                    onEdit={setEditTask}
+                    onDelete={handleDeleteConfirm}
+                  />
+                ))}
               </div>
             )}
 
-            {/* Completed tasks */}
+            {/* Completed */}
             {tasks.filter(t => t.isCompleted).length > 0 && (
               <div>
                 <p style={{
@@ -298,17 +301,15 @@ function Home() {
                 }}>
                   Completed
                 </p>
-                {tasks
-                  .filter(t => t.isCompleted)
-                  .map(task => (
-                    <TaskItem
-                      key={task._id}
-                      task={task}
-                      onComplete={handleComplete}
-                      onEdit={setEditTask}
-                      onDelete={handleDeleteConfirm}
-                    />
-                  ))}
+                {tasks.filter(t => t.isCompleted).map(task => (
+                  <TaskItem
+                    key={task._id}
+                    task={task}
+                    onComplete={handleComplete}
+                    onEdit={setEditTask}
+                    onDelete={handleDeleteConfirm}
+                  />
+                ))}
               </div>
             )}
           </div>
@@ -324,7 +325,7 @@ function Home() {
         />
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* Delete Confirm Modal */}
       {deleteConfirm && (
         <div style={{
           position: 'fixed',
