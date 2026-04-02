@@ -1,4 +1,16 @@
 import { useState, useEffect } from 'react';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable';
 import API from '../api/axios.js';
 import { useAuth } from '../context/AuthContext.jsx';
 import Navbar from '../components/Navbar.jsx';
@@ -17,6 +29,8 @@ function Home() {
   const [error, setError] = useState('');
   const [editTask, setEditTask] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+
+  const sensors = useSensors(useSensor(PointerSensor));
 
   useEffect(() => {
     fetchTasks();
@@ -53,13 +67,13 @@ function Home() {
   };
 
   const handleComplete = async (id) => {
-  try {
-    const res = await API.put(`/tasks/${id}/complete`);
-    setTasks(tasks.map(t => t._id === id ? res.data : t));
-  } catch (err) {
-    setError('Failed to update task');
-  }
-};
+    try {
+      const res = await API.put(`/tasks/${id}/complete`);
+      setTasks(tasks.map(t => t._id === id ? res.data : t));
+    } catch (err) {
+      setError('Failed to update task');
+    }
+  };
 
   const handleEdit = async (id, newText) => {
     try {
@@ -91,9 +105,52 @@ function Home() {
     }
   };
 
+  // Handle drag end for pending tasks
+  const handlePendingDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const pendingTasks = tasks.filter(t => !t.isCompleted);
+    const completedTasks = tasks.filter(t => t.isCompleted);
+
+    const oldIndex = pendingTasks.findIndex(t => t._id === active.id);
+    const newIndex = pendingTasks.findIndex(t => t._id === over.id);
+
+    const reordered = arrayMove(pendingTasks, oldIndex, newIndex);
+    setTasks([...reordered, ...completedTasks]);
+
+    // Save new order to backend
+    await API.put('/tasks/reorder', {
+      orderedIds: reordered.map(t => t._id),
+    });
+  };
+
+  // Handle drag end for completed tasks
+  const handleCompletedDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const pendingTasks = tasks.filter(t => !t.isCompleted);
+    const completedTasks = tasks.filter(t => t.isCompleted);
+
+    const oldIndex = completedTasks.findIndex(t => t._id === active.id);
+    const newIndex = completedTasks.findIndex(t => t._id === over.id);
+
+    const reordered = arrayMove(completedTasks, oldIndex, newIndex);
+    setTasks([...pendingTasks, ...reordered]);
+
+    // Save new order to backend
+    await API.put('/tasks/reorder', {
+      orderedIds: reordered.map(t => t._id),
+    });
+  };
+
   const totalTasks = tasks.length;
   const completedTasks = tasks.filter(t => t.isCompleted).length;
   const pendingTasks = tasks.filter(t => !t.isCompleted).length;
+
+  const pendingList = tasks.filter(t => !t.isCompleted);
+  const completedList = tasks.filter(t => t.isCompleted);
 
   return (
     <div style={{
@@ -108,7 +165,7 @@ function Home() {
 
       {/* Banner */}
       <div style={{
-        backgroundColor: theme.colors.primary,
+        backgroundColor: '#1E1B4B',
         padding: `${theme.spacing.xl} ${theme.spacing.xl}`,
         textAlign: 'center',
       }}>
@@ -263,8 +320,9 @@ function Home() {
           </div>
         ) : (
           <div>
-            {/* Pending */}
-            {tasks.filter(t => !t.isCompleted).length > 0 && (
+
+            {/* Pending tasks */}
+            {pendingList.length > 0 && (
               <div style={{ marginBottom: theme.spacing.lg }}>
                 <p style={{
                   fontSize: theme.fonts.sizes.sm,
@@ -274,22 +332,33 @@ function Home() {
                   letterSpacing: '0.08em',
                   marginBottom: theme.spacing.sm,
                 }}>
-                  Pending
+                  Pending — drag to reorder
                 </p>
-                {tasks.filter(t => !t.isCompleted).map(task => (
-                  <TaskItem
-                    key={task._id}
-                    task={task}
-                    onComplete={handleComplete}
-                    onEdit={setEditTask}
-                    onDelete={handleDeleteConfirm}
-                  />
-                ))}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handlePendingDragEnd}
+                >
+                  <SortableContext
+                    items={pendingList.map(t => t._id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {pendingList.map(task => (
+                      <TaskItem
+                        key={task._id}
+                        task={task}
+                        onComplete={handleComplete}
+                        onEdit={setEditTask}
+                        onDelete={handleDeleteConfirm}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               </div>
             )}
 
-            {/* Completed */}
-            {tasks.filter(t => t.isCompleted).length > 0 && (
+            {/* Completed tasks */}
+            {completedList.length > 0 && (
               <div>
                 <p style={{
                   fontSize: theme.fonts.sizes.sm,
@@ -299,19 +368,31 @@ function Home() {
                   letterSpacing: '0.08em',
                   marginBottom: theme.spacing.sm,
                 }}>
-                  Completed
+                  Completed — drag to reorder
                 </p>
-                {tasks.filter(t => t.isCompleted).map(task => (
-                  <TaskItem
-                    key={task._id}
-                    task={task}
-                    onComplete={handleComplete}
-                    onEdit={setEditTask}
-                    onDelete={handleDeleteConfirm}
-                  />
-                ))}
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleCompletedDragEnd}
+                >
+                  <SortableContext
+                    items={completedList.map(t => t._id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    {completedList.map(task => (
+                      <TaskItem
+                        key={task._id}
+                        task={task}
+                        onComplete={handleComplete}
+                        onEdit={setEditTask}
+                        onDelete={handleDeleteConfirm}
+                      />
+                    ))}
+                  </SortableContext>
+                </DndContext>
               </div>
             )}
+
           </div>
         )}
       </div>

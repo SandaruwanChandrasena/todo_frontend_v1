@@ -47,7 +47,7 @@ function Navbar() {
             justifyContent: 'center',
             fontSize: '16px',
           }}>
-            ✅
+            
           </div>
           <h1 style={{
             fontSize: theme.fonts.sizes.xl,
